@@ -46,8 +46,8 @@ private:
     unsigned int EBOb[10];
 
 
-    float q2 = 2.0f;
-    float a1 = 0, a2 = 0, a3 = 10, a4 = 15, a5 = 30;
+    float q2 = 4.0f;
+    float a1 = 30, a2 = 30, a3 = 10, a4 = 15, a5 = 30;
 
     std::unique_ptr<Cursor> cur;
 

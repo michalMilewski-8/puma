@@ -81,7 +81,7 @@ void Block::create_block_points()
 		quads[2].push_back(pt);
 	}
 
-	res = generate_cylinder(0.1, q2, false, { 1,0,0 }, { 1,1,0 });
+	res = generate_cylinder(0.1, 1.0f, false, { 1,0,0 }, { 1,1,0 });
 	for (auto& pt : res.first) {
 		points[3].push_back(pt);
 	}
@@ -366,6 +366,16 @@ void Block::DrawObject(glm::mat4 mvp)
 	glDrawElements(GL_TRIANGLES, quads[2].size(), GL_UNSIGNED_INT, 0);
 
 	glBindVertexArray(VAOb[3]);
+
+	auto model2 = model;
+
+	model2 = glm::scale(model2, { q2,1,1 });
+
+	trmodel = glm::transpose(glm::inverse(model2));
+	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(model2));
+
+	glUniformMatrix4fv(trmodelLoc, 1, GL_FALSE, glm::value_ptr(trmodel));
+
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glDrawElements(GL_TRIANGLES, quads[3].size(), GL_UNSIGNED_INT, 0);
 
