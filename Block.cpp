@@ -15,7 +15,50 @@ void Block::Update()
 
 void Block::DrawFrame(float T)
 {
-	
+	float tmp;
+	tmp = abs(start.a1 - end.a1);;
+	if (tmp > M_PI)
+		tmp = -(2 * M_PI - tmp);
+	if (end.a1 > start.a1)
+		current.a1 = start.a1 + T * tmp;
+	else
+		current.a1 = start.a1 - T * tmp;
+
+	tmp = abs(start.a2 - end.a2);;
+	if (tmp > M_PI)
+		tmp = -(2 * M_PI - tmp);
+	if (end.a2 > start.a2)
+		current.a2 = start.a2 + T * tmp;
+	else
+		current.a2 = start.a2 - T * tmp;
+
+	tmp = abs(start.a3 - end.a3);;
+	if (tmp > M_PI)
+		tmp = -(2 * M_PI - tmp);
+	if (end.a3 > start.a3)
+		current.a3 = start.a3 + T * tmp;
+	else
+		current.a3 = start.a3 - T * tmp;
+
+	tmp = abs(start.a4 - end.a4);;
+	if (tmp > M_PI)
+		tmp = -(2 * M_PI - tmp);
+	if (end.a4 > start.a4)
+		current.a4 = start.a4 + T * tmp;
+	else
+		current.a4 = start.a4 - T * tmp;
+
+	tmp = abs(start.a5 - end.a5);;
+	if (tmp > M_PI)
+		tmp = -(2 * M_PI - tmp);
+	if (end.a5 > start.a5)
+		current.a5 = start.a5 + T * tmp;
+	else
+		current.a5 = start.a5 - T * tmp;
+
+	current.q2 = start.q2 + T * (end.q2 - start.q2);
+
+
 }
 
 void Block::DrawFrame(float T, glm::vec3 start_pos, glm::vec3 end_pos, glm::quat rotation_start, glm::quat rotation_end)
@@ -27,7 +70,7 @@ void Block::DrawFrame(float T, glm::vec3 start_pos, glm::vec3 end_pos, glm::quat
 
 	SolveInverse(current_pos, cur_rot);
 
-	configuration::choose_closer(first, second, last);
+	current = configuration::choose_closer(first, second, last);
 }
 
 void Block::create_block_points()
@@ -597,58 +640,58 @@ configuration configuration::choose_closer(configuration c1, configuration c2, c
 	tmp = abs(l.a1 - c1.a1);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist1 = tmp * tmp;
+	dist1 += tmp * tmp;
 
 	tmp = abs(l.a2 - c1.a2);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist1 = tmp * tmp;
+	dist1 += tmp * tmp;
 
 	tmp = abs(l.a3 - c1.a3);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist1 = tmp * tmp;
+	dist1 += tmp * tmp;
 
 	tmp = abs(l.a4 - c1.a4);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist1 = tmp * tmp;
+	dist1 += tmp * tmp;
 
 	tmp = abs(l.a5 - c1.a5);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist1 = tmp * tmp;
+	dist1 += tmp * tmp;
 
 	tmp = abs(l.q2 - c1.q2);
-	dist1 = tmp * tmp;
+	dist1 += tmp * tmp;
 
 	tmp = abs(l.a1 - c2.a1);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist2 = tmp * tmp;
+	dist2 += tmp * tmp;
 
 	tmp = abs(l.a2 - c2.a2);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist2 = tmp * tmp;
+	dist2 += tmp * tmp;
 
 	tmp = abs(l.a3 - c2.a3);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist2 = tmp * tmp;
+	dist2 += tmp * tmp;
 
 	tmp = abs(l.a4 - c2.a4);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist2 = tmp * tmp;
+	dist2 += tmp * tmp;
 
 	tmp = abs(l.a5 - c2.a5);
 	if (tmp > M_PI)
 		tmp = 2 * M_PI - tmp;
-	dist2 = tmp * tmp;
+	dist2 += tmp * tmp;
 
 	tmp = abs(l.q2 - c2.q2);
-	dist2 = tmp * tmp;
+	dist2 += tmp * tmp;
 
 
 	if (dist1 <= dist2)
