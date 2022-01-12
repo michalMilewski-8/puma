@@ -39,6 +39,7 @@ void Cursor::SetCursorPosition(glm::vec3 position)
 	translate[3][0] = position.x;
 	translate[3][1] = position.y;
 	translate[3][2] = position.z;
+
 }
 
 void Cursor::DrawObject(glm::mat4 mvp)

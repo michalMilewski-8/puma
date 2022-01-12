@@ -40,8 +40,8 @@ float deltaTime = 0.0f;	// Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 float ipd = 0.01f;
 float d = 0.1f;
-float near = 0.01f;
-float far = 20.0f;
+float near = 0.001f;
+float far = 200.0f;
 bool animate = false;
 float T = 0.0f;
 float animation_time = 1.0f;
@@ -64,6 +64,15 @@ glm::quat quaternion_e = { 1,0,0,0 };
 bool is_linear_aprox = true;
 
 Camera cam;
+
+glm::vec3 start_poss;
+glm::vec3 end_poss;
+
+glm::quat start_q;
+glm::quat end_q;
+
+std::unique_ptr<Cursor> end_pos;
+std::unique_ptr<Cursor> end_pos2;
 Shader ourShader;
 Shader ourShader2;
 GLFWwindow* window;
@@ -82,8 +91,6 @@ void processInput(GLFWwindow* window);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void create_gui();
-void draw_frames1();
-void draw_frames2();
 
 int main() {
 	glfwInit();
@@ -149,6 +156,7 @@ int main() {
 	glEnable(GL_DEPTH_TEST);
 
 	block = std::make_unique<Block>(ourShader);
+	end_pos = std::make_unique<Cursor>(ourShader);
 	glfwMakeContextCurrent(window2);
 
 	glViewport(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT);
@@ -162,6 +170,7 @@ int main() {
 	glEnable(GL_DEPTH_TEST);
 
 	block2 = std::make_unique<Block>(ourShader2);
+	end_pos2 = std::make_unique<Cursor>(ourShader2);
 	// render loop
 	while (!glfwWindowShouldClose(window))
 	{
@@ -184,9 +193,6 @@ int main() {
 		processInput(window);
 		create_gui();
 
-		if (show_frames)
-			draw_frames1();
-		else
 			draw_scene();
 
 		// Render dear imgui into screen
@@ -201,9 +207,6 @@ int main() {
 		glClearColor(0.8f, 0.2f, 0.2f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		if (show_frames)
-			draw_frames2();
-		else
 			draw_scene2();
 		glfwSwapBuffers(window2);
 
@@ -226,33 +229,19 @@ int main() {
 }
 
 void draw_scene() {
-	block->DrawFrame(T, translation_s, translation_e, quaternion_s, quaternion_e, is_linear_aprox);
-	block->DrawObject(mvp);
-}
-
-void draw_frames1() {
-	const float diff = 1.0f / (number_of_frames_shown);
-	for (int i = 0; i < number_of_frames_shown; i++) {
-		block->DrawFrame(diff * i, translation_s, translation_e, quaternion_s, quaternion_e, is_linear_aprox);
-		block->DrawObject(mvp);
+	if (animate) {
+		block->DrawFrame(T, start_poss, end_poss, start_q, end_q);
 	}
-	block->DrawFrame(1.0f, translation_s, translation_e, quaternion_s, quaternion_e, is_linear_aprox);
 	block->DrawObject(mvp);
-}
-
-void draw_frames2() {
-	const float diff = 1.0f / (number_of_frames_shown);
-	for (int i = 0; i < number_of_frames_shown; i++) {
-		block2->DrawFrame(diff * i, translation_s, translation_e, rot_euler_s, rot_euler_e, is_linear_aprox);
-		block2->DrawObject(mvp);
-	}
-	block2->DrawFrame(1.0f, translation_s, translation_e, rot_euler_s, rot_euler_e, is_linear_aprox);
-	block2->DrawObject(mvp);
+	end_pos->DrawObject(mvp);
 }
 
 void draw_scene2() {
-	block2->DrawFrame(T, translation_s, translation_e, rot_euler_s, rot_euler_e, is_linear_aprox);
+	if (animate) {
+		block2->DrawFrame(T);
+	}
 	block2->DrawObject(mvp);
+	end_pos2->DrawObject(mvp);
 }
 
 #pragma region  boilerCodeOpenGL
@@ -370,10 +359,10 @@ void create_gui() {
 	//flags |= ImGuiWindowFlags_MenuBar;
 	ImGui::Begin("Main Menu##uu", &open, flags);
 
-	ImGui::InputFloat3("Start Position", (float*)&translation_s);
+	//ImGui::InputFloat3("Start Position", (float*)&translation_s);
 	ImGui::InputFloat3("End Position", (float*)&translation_e);
 
-	ImGui::InputFloat4("Quaternion start", (float*)&quaternion_s);
+	//ImGui::InputFloat4("Quaternion start", (float*)&quaternion_s);
 	ImGui::InputFloat4("Quaternion end", (float*)&quaternion_e);
 
 	ImGui::SliderFloat("Animation time", &animation_time, 0.1f, 100.0f, "%.3f", 1.0f);
@@ -383,13 +372,47 @@ void create_gui() {
 	if (show_frames)
 		ImGui::SliderInt("Number of frames shown", &number_of_frames_shown, 1, 200);
 
-	if (ImGui::Button("Start Animation")) animate = true;
+	if (ImGui::Button("position")) {
+		end_pos->SetCursorPosition(translation_e);
+		end_pos->RotateObject(quaternion_e);
+		block->SolveInverse(translation_e, quaternion_e);
+		block2->SolveInverse(translation_e, quaternion_e);
+	}
+	if (ImGui::Button("Set End position")) {
+		block->end = block->current;
+		block2->end = block2->current;
+		end_poss = translation_e;
+		end_q = quaternion_e;
+	}
+
+	if (ImGui::Button("Set Start position")) {
+		block->start = block->current;
+		block2->start = block2->current;
+		start_poss = translation_e;
+		start_q = quaternion_e;
+	}
+
+	if (ImGui::Button("Choose first")) {
+		block->current = block->first;
+		block2->current = block2->first;
+	}
+	if (ImGui::Button("Choose second")) {
+		block->current = block->second;
+		block2->current = block2->second;
+	}
+
+	
 	if (ImGui::Button("Normalize quaternion")) {
 		quaternion_s = glm::normalize(quaternion_s);
 		quaternion_e = glm::normalize(quaternion_e);
+
+		end_pos->SetCursorPosition(translation_e);
+		end_pos->RotateObject(quaternion_e);
+		end_pos2->SetCursorPosition(translation_e);
+		end_pos2->RotateObject(quaternion_e);
 	}
 
-
+	if (ImGui::Button("Start Animation")) animate = true;
 	if (ImGui::Button("Stop Animation")) animate = false;
 	if (ImGui::Button("Restart Animation")) T = 0.0f;
 

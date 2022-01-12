@@ -13,51 +13,26 @@ void Block::Update()
 	need_update = true;
 }
 
-void Block::DrawFrame(float T, glm::vec3 start_pos, glm::vec3 end_pos, glm::vec3 rotation_start, glm::vec3 rotation_end, bool aproximation_is_line)
+void Block::DrawFrame(float T)
 {
-	rotate = glm::mat4(0.0f);
-
-	this->MoveObjectTo(start_pos + (end_pos - start_pos) * T);
-
-	glm::vec3 rotation_diff = rotation_end - rotation_start;
-
-	if (abs(rotation_diff.x) > abs(rotation_end.x - (360.0f + rotation_start.x)))
-		rotation_diff.x = rotation_end.x - (360.0f + rotation_start.x);
-	if (abs(rotation_diff.y) > abs(rotation_end.y - (360.0f + rotation_start.y)))
-		rotation_diff.y = rotation_end.y - (360.0f + rotation_start.y);
-	if (abs(rotation_diff.z) > abs(rotation_end.z - (360.0f + rotation_start.z)))
-		rotation_diff.z = rotation_end.z - (360.0f + rotation_start.z);
-
-	if (abs(rotation_diff.x) > abs(360.0f + rotation_end.x -  rotation_start.x))
-		rotation_diff.x = 360.0f + rotation_end.x - rotation_start.x;
-	if (abs(rotation_diff.y) > abs(360.0f + rotation_end.y - rotation_start.y))
-		rotation_diff.y = 360.0f + rotation_end.y - rotation_start.y;
-	if (abs(rotation_diff.z) > abs(360.0f + rotation_end.z - rotation_start.z))
-		rotation_diff.z = 360.0f + rotation_end.z - rotation_start.z;
-
-
-	this->RotateObject(EulerToQuaternion(rotation_start + rotation_diff * T));
-
+	
 }
 
-void Block::DrawFrame(float T, glm::vec3 start_pos, glm::vec3 end_pos, glm::quat rotation_start, glm::quat rotation_end, bool aproximation_is_line)
+void Block::DrawFrame(float T, glm::vec3 start_pos, glm::vec3 end_pos, glm::quat rotation_start, glm::quat rotation_end)
 {
-	rotate = glm::mat4(0.0f);
-	this->MoveObjectTo(start_pos + (end_pos - start_pos) * T);
-	if (aproximation_is_line) {
-		if (glm::length(rotation_end - rotation_start) < glm::length(-rotation_end - rotation_start))
-			this->RotateObject(glm::normalize(rotation_start + (rotation_end - rotation_start) * T));
-		else
-			this->RotateObject(glm::normalize(rotation_start + (-rotation_end - rotation_start) * T));
-	}
-	else {
-		this->RotateObject(glm::slerp(rotation_start, rotation_end, T));
-	}
+	last = current;
+
+	auto current_pos = start_pos + (end_pos - start_pos) * T;
+	auto cur_rot = glm::slerp(rotation_start, rotation_end, T);
+
+	SolveInverse(current_pos, cur_rot);
+
+	configuration::choose_closer(first, second, last);
 }
 
 void Block::create_block_points()
 {
-	auto res = generate_cylinder(0.3, 0.3, true, { 0,1,0 }, {1,0,0});
+	auto res = generate_cylinder(0.3, 0.3, true, { 0,1,0 }, { 1,0,0 });
 	for (auto& pt : res.first) {
 		points[0].push_back(pt);
 	}
@@ -159,7 +134,20 @@ void Block::update_object()
 	}
 }
 
-std::pair<std::vector<float>, std::vector<unsigned int>> Block::generate_cylinder(float r, float l, bool start_in_center,glm::vec3 dir, glm::vec3 col)
+float Block::angle(glm::vec3 v, glm::vec3 w, glm::vec3 dir)
+{
+	auto c = glm::normalize(glm::cross(v, w));
+	float a;
+
+	a = glm::acos(glm::dot(v, w) / (glm::length(v) * glm::length(w)));
+
+	if (glm::length2(dir - c) > 1e-4)
+		return -a;
+	else
+		return a;
+}
+
+std::pair<std::vector<float>, std::vector<unsigned int>> Block::generate_cylinder(float r, float l, bool start_in_center, glm::vec3 dir, glm::vec3 col)
 {
 	std::vector<float> points_ = {};
 	std::vector<unsigned int> triangles_ = {};
@@ -169,7 +157,7 @@ std::pair<std::vector<float>, std::vector<unsigned int>> Block::generate_cylinde
 	float delta = 2.0f * M_PI / 200.0f;
 
 	for (int i = 0; i < 200; i++) {
-		circle.push_back({ r*glm::sin(delta * i), r*glm::cos(delta * i), glm::sin(delta * i), glm::cos(delta * i) });
+		circle.push_back({ r * glm::sin(delta * i), r * glm::cos(delta * i), glm::sin(delta * i), glm::cos(delta * i) });
 	}
 
 	glm::vec3 start;
@@ -273,8 +261,8 @@ std::pair<std::vector<float>, std::vector<unsigned int>> Block::generate_cylinde
 
 	for (int i = 0; i < 200; i++) {
 		triangles_.push_back(0);
-		triangles_.push_back(1+i);
-		triangles_.push_back(1+(i+1)%200);
+		triangles_.push_back(1 + i);
+		triangles_.push_back(1 + (i + 1) % 200);
 
 		triangles_.push_back(201);
 		triangles_.push_back(200 + 2 + i);
@@ -289,7 +277,7 @@ std::pair<std::vector<float>, std::vector<unsigned int>> Block::generate_cylinde
 		triangles_.push_back(1 + (i + 1) % 200);
 	}
 
-	return { points_, triangles_};
+	return { points_, triangles_ };
 }
 
 Block::Block(Shader sh) :
@@ -304,7 +292,7 @@ Block::Block(Shader sh) :
 		points[i].clear();
 		quads[i].clear();
 	}
-	
+
 	update_object();
 }
 
@@ -328,8 +316,8 @@ void Block::DrawObject(glm::mat4 mvp)
 
 	// 1
 	glBindVertexArray(VAOb[0]);
-	glm::mat4 model = translate*rotate*resize;
-	model = glm::rotate(model, (float)(a1/180.0f * M_PI), { 0,1,0 });
+	glm::mat4 model = translate * rotate * resize;
+	model = glm::rotate(model, (float)current.a1, { 0,1,0 });
 	glm::mat4 trmodel = glm::transpose(glm::inverse(model));
 	int projectionLoc = glGetUniformLocation(shader.ID, "model");
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -355,7 +343,7 @@ void Block::DrawObject(glm::mat4 mvp)
 	// 2
 	glBindVertexArray(VAOb[2]);
 	model = glm::translate(model, { 0,l1,0 });
-	model = glm::rotate(model, (float)(a2 / 180.0f * M_PI), {0,0,-1});
+	model = glm::rotate(model, (float)(current.a2), { 0,0,-1 });
 
 	trmodel = glm::transpose(glm::inverse(model));
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -369,7 +357,7 @@ void Block::DrawObject(glm::mat4 mvp)
 
 	auto model2 = model;
 
-	model2 = glm::scale(model2, { q2,1,1 });
+	model2 = glm::scale(model2, { current.q2,1,1 });
 
 	trmodel = glm::transpose(glm::inverse(model2));
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(model2));
@@ -381,8 +369,8 @@ void Block::DrawObject(glm::mat4 mvp)
 
 	// 3
 	glBindVertexArray(VAOb[4]);
-	model = glm::translate(model, { q2,0,0 });
-	model = glm::rotate(model, (float)(a3 / 180.0f * M_PI), { 0,0,-1 });
+	model = glm::translate(model, { current.q2,0,0 });
+	model = glm::rotate(model, (float)(current.a3), { 0,0,-1 });
 
 	trmodel = glm::transpose(glm::inverse(model));
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -399,7 +387,7 @@ void Block::DrawObject(glm::mat4 mvp)
 	// 4
 	glBindVertexArray(VAOb[6]);
 	model = glm::translate(model, { 0,-l3,0 });
-	model = glm::rotate(model, (float)((a4) / 180.0f * M_PI), { 0,1,0 });
+	model = glm::rotate(model, (float)(current.a4), { 0,1,0 });
 
 	trmodel = glm::transpose(glm::inverse(model));
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -416,7 +404,7 @@ void Block::DrawObject(glm::mat4 mvp)
 	// 5
 	glBindVertexArray(VAOb[8]);
 	model = glm::translate(model, { l4,0,0 });
-	model = glm::rotate(model, (float)((a5) / 180.0f * M_PI), { 1,0,0 });
+	model = glm::rotate(model, (float)((current.a5)), { 1,0,0 });
 
 	trmodel = glm::transpose(glm::inverse(model));
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -428,7 +416,7 @@ void Block::DrawObject(glm::mat4 mvp)
 
 	glBindVertexArray(0);
 
-	cur->DrawObject(mvp* model);
+	cur->DrawObject(mvp * model);
 }
 
 glm::quat Block::EulerToQuaternion(glm::vec3 rot)
@@ -467,4 +455,204 @@ glm::quat Block::EulerToQuaternion(glm::vec3 rot)
 glm::vec3 Block::QuaternionToEuler(glm::quat quat)
 {
 	return (glm::eulerAngles(quat) / (float)M_PI) * 180.0f;
+}
+
+std::tuple<float, float, float, float, float, float> Block::SolveInverse(glm::vec3 pos, glm::quat q) {
+
+	glm::vec3 x5 = glm::rotate(q, { 1,0,0,0 });
+	glm::vec3 y5 = glm::rotate(q, { 0,0,-1,0 });
+	glm::vec3 z5 = glm::rotate(q, { 0,1,0,0 });
+	glm::vec3 x0 = { 1,0,0 };
+
+
+	glm::vec3 z0 = { 0,1,0 };
+	glm::vec3 p0 = { 0,0,0 };
+	glm::vec3 p5 = pos;
+	glm::vec3 p1 = p0;
+	glm::vec3 p2 = p0 + l1 * z0;
+	glm::vec3 p4 = p5 - l4 * x5;
+
+	glm::vec3 norm = glm::cross(p4 - p0, p2 - p0);
+
+	if (glm::length2(norm) < 1e-4) {
+		norm = glm::normalize(glm::cross(p5 - p0, p2 - p0));
+	}
+	else {
+		norm = glm::normalize(norm);
+	}
+
+	glm::vec3 z4 = {};
+
+	if (x5.y == 0.0f || (x5.y > -1e-6 && x5.y < 1e-6)) {
+		z4 = { 0,1,0 };
+	}
+	else if (norm.z == 0.0f || (norm.z > -1e-6 && norm.z < 1e-6)) {
+		float c1 = -norm.z / norm.x;
+		float c2 = -(x5.x * c1 + x5.z) / x5.y;
+		z4.z = std::sqrtf(1 / (1 + c1 * c1 + c2 * c2));
+		z4.y = z4.z * c2;
+		z4.x = z4.z * c1;
+	}
+	else {
+		float c1 = -norm.x / norm.z;
+		float c2 = -(x5.z * c1 + x5.x) / x5.y;
+		z4.x = std::sqrtf(1 / (1 + c1 * c1 + c2 * c2));
+		z4.y = z4.x * c2;
+		z4.z = z4.x * c1;
+	}
+	{
+		// pierwsze rozwiazanie
+		glm::vec3 p3 = p4 + l3 * z4;
+
+		glm::mat4 rotation = glm::mat4(1.0f);
+
+		float a1_ = std::atan2f(-p4.z, p4.x);
+
+		if (std::abs(p4.z) < 1e-3 && std::abs(p4.x) < 1e-3)
+			a1_ = std::atan2f(-p5.z, p5.x);
+
+		rotation = glm::rotate(rotation, a1_, { 0,1,0 });
+
+		glm::vec3 x1 = rotation * glm::vec4(x0, 0);
+
+		float a2_ = angle(p2 - p0, p3 - p2, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
+		if (glm::length2(p3 - p2) < 1e-4)
+			a2_ = angle(p2 - p0, x1, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
+		float q2_ = glm::length(p3 - p2);
+
+		rotation = glm::rotate(rotation, a2_, { 0,0,-1 });
+
+		float a3_ = angle(p3 - p2, p4 - p3, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
+		if (glm::length2(p3 - p2) < 1e-4)
+			a3_ = angle(x1, p4 - p3, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
+
+		rotation = glm::rotate(rotation, a3_, { 0,0,-1 });
+
+		float a4_ = angle(-norm, x5, rotation * glm::vec4{ 0,1,0,0 }) + M_PI_2;
+
+		rotation = glm::rotate(rotation, a4_, { 0,1,0 });
+
+		float a5_ = angle(p3 - p4, z5, rotation * glm::vec4{ 1,0,0,0 });
+
+		current.a1 = a1_;
+		current.a2 = a2_;
+		current.a3 = a3_;
+		current.a4 = a4_;
+		current.a5 = a5_;
+		current.q2 = q2_;
+
+		first = current;
+	}
+	{
+		glm::vec3 p3 = p4 - l3 * z4;
+
+		glm::mat4 rotation = glm::mat4(1.0f);
+
+		float a1_ = std::atan2f(-p4.z, p4.x);
+
+		if (std::abs(p4.z) < 1e-5 && std::abs(p4.x) < 1e-5)
+			a1_ = std::atan2f(-p5.z, p5.x);
+
+		rotation = glm::rotate(rotation, a1_, { 0,1,0 });
+
+		glm::vec3 x1 = rotation * glm::vec4(x0, 0);
+
+		float a2_ = angle(p2 - p0, p3 - p2, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
+		if (glm::length2(p3 - p2) < 1e-7)
+			a2_ = angle(p2 - p0, x1, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
+		float q2_ = glm::length(p3 - p2);
+
+		rotation = glm::rotate(rotation, a2_, { 0,0,-1 });
+
+		float a3_ = angle(p3 - p2, p4 - p3, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
+		if (glm::length2(p3 - p2) < 1e-7)
+			a3_ = angle(x1, p4 - p3, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
+
+		rotation = glm::rotate(rotation, a3_, { 0,0,-1 });
+
+		float a4_ = angle(-norm, x5, rotation * glm::vec4{ 0,1,0,0 }) + M_PI_2;
+
+		rotation = glm::rotate(rotation, a4_, { 0,1,0 });
+
+		float a5_ = angle(p3 - p4, z5, rotation * glm::vec4{ 1,0,0,0 });
+
+		second.a1 = a1_;
+		second.a2 = a2_;
+		second.a3 = a3_;
+		second.a4 = a4_;
+		second.a5 = a5_;
+		second.q2 = q2_;
+	}
+
+	return {};
+}
+
+configuration configuration::choose_closer(configuration c1, configuration c2, configuration l)
+{
+	float dist1 = 0.0f;
+	float dist2 = 0.0f;
+
+	float tmp = 0.0f;
+
+	tmp = abs(l.a1 - c1.a1);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist1 = tmp * tmp;
+
+	tmp = abs(l.a2 - c1.a2);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist1 = tmp * tmp;
+
+	tmp = abs(l.a3 - c1.a3);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist1 = tmp * tmp;
+
+	tmp = abs(l.a4 - c1.a4);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist1 = tmp * tmp;
+
+	tmp = abs(l.a5 - c1.a5);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist1 = tmp * tmp;
+
+	tmp = abs(l.q2 - c1.q2);
+	dist1 = tmp * tmp;
+
+	tmp = abs(l.a1 - c2.a1);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist2 = tmp * tmp;
+
+	tmp = abs(l.a2 - c2.a2);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist2 = tmp * tmp;
+
+	tmp = abs(l.a3 - c2.a3);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist2 = tmp * tmp;
+
+	tmp = abs(l.a4 - c2.a4);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist2 = tmp * tmp;
+
+	tmp = abs(l.a5 - c2.a5);
+	if (tmp > M_PI)
+		tmp = 2 * M_PI - tmp;
+	dist2 = tmp * tmp;
+
+	tmp = abs(l.q2 - c2.q2);
+	dist2 = tmp * tmp;
+
+
+	if (dist1 <= dist2)
+		return c1;
+	else
+		return c2;
 }
