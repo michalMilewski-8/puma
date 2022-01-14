@@ -64,7 +64,12 @@ void Block::DrawFrame(float T)
 void Block::DrawFrame(float T, glm::vec3 start_pos, glm::vec3 end_pos, glm::quat rotation_start, glm::quat rotation_end)
 {
 	last = current;
-
+	if (T > 1.0f) T = 1.0f;
+	if (T < 0.0f) T = 0.0f;
+	if (T == 0.0f) {
+		current = start;
+		return;
+	}
 	auto current_pos = start_pos + (end_pos - start_pos) * T;
 	auto cur_rot = glm::slerp(rotation_start, rotation_end, T);
 
@@ -515,10 +520,13 @@ std::tuple<float, float, float, float, float, float> Block::SolveInverse(glm::ve
 	glm::vec3 p2 = p0 + l1 * z0;
 	glm::vec3 p4 = p5 - l4 * x5;
 
-	glm::vec3 norm = glm::cross(p4 - p0, p2 - p0);
+	glm::vec3 norm = glm::cross(p4 - p0, z0);
 
 	if (glm::length2(norm) < 1e-4) {
-		norm = glm::normalize(glm::cross(p5 - p0, p2 - p0));
+		if((glm::dot(p5 -p0,x5) < 0.0f && glm::dot(p4 - p0, x5) > 0.0f)|| (glm::dot(p5 - p0, x5) > 0.0f && glm::dot(p4 - p0, x5) < 0.0f))
+			norm = -glm::normalize(glm::cross(p5 - p0, z0));
+		else
+			norm = glm::normalize(glm::cross(p5 - p0, z0));
 	}
 	else {
 		norm = glm::normalize(norm);
@@ -526,10 +534,10 @@ std::tuple<float, float, float, float, float, float> Block::SolveInverse(glm::ve
 
 	glm::vec3 z4 = {};
 
-	if (x5.y == 0.0f || (x5.y > -1e-6 && x5.y < 1e-6)) {
+	if (std::abs(x5.y) < 1e-4) {
 		z4 = { 0,1,0 };
 	}
-	else if (norm.z == 0.0f || (norm.z > -1e-6 && norm.z < 1e-6)) {
+	else if (abs(norm.z) < 1e-4) {
 		float c1 = -norm.z / norm.x;
 		float c2 = -(x5.x * c1 + x5.z) / x5.y;
 		z4.z = std::sqrtf(1 / (1 + c1 * c1 + c2 * c2));
@@ -543,6 +551,7 @@ std::tuple<float, float, float, float, float, float> Block::SolveInverse(glm::ve
 		z4.y = z4.x * c2;
 		z4.z = z4.x * c1;
 	}
+
 	{
 		// pierwsze rozwiazanie
 		glm::vec3 p3 = p4 + l3 * z4;
@@ -551,7 +560,7 @@ std::tuple<float, float, float, float, float, float> Block::SolveInverse(glm::ve
 
 		float a1_ = std::atan2f(-p4.z, p4.x);
 
-		if (std::abs(p4.z) < 1e-3 && std::abs(p4.x) < 1e-3)
+		if (std::abs(p4.z) < 1e-4 && std::abs(p4.x) < 1e-4)
 			a1_ = std::atan2f(-p5.z, p5.x);
 
 		rotation = glm::rotate(rotation, a1_, { 0,1,0 });
@@ -593,22 +602,21 @@ std::tuple<float, float, float, float, float, float> Block::SolveInverse(glm::ve
 
 		float a1_ = std::atan2f(-p4.z, p4.x);
 
-		if (std::abs(p4.z) < 1e-5 && std::abs(p4.x) < 1e-5)
+		if (std::abs(p4.z) < 1e-4 && std::abs(p4.x) < 1e-4)
 			a1_ = std::atan2f(-p5.z, p5.x);
-
 		rotation = glm::rotate(rotation, a1_, { 0,1,0 });
 
 		glm::vec3 x1 = rotation * glm::vec4(x0, 0);
 
 		float a2_ = angle(p2 - p0, p3 - p2, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
-		if (glm::length2(p3 - p2) < 1e-7)
+		if (glm::length2(p3 - p2) < 1e-4)
 			a2_ = angle(p2 - p0, x1, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
 		float q2_ = glm::length(p3 - p2);
 
 		rotation = glm::rotate(rotation, a2_, { 0,0,-1 });
 
 		float a3_ = angle(p3 - p2, p4 - p3, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
-		if (glm::length2(p3 - p2) < 1e-7)
+		if (glm::length2(p3 - p2) < 1e-4)
 			a3_ = angle(x1, p4 - p3, rotation * glm::vec4{ 0,0,-1,0 }) - M_PI_2;
 
 		rotation = glm::rotate(rotation, a3_, { 0,0,-1 });
@@ -693,7 +701,8 @@ configuration configuration::choose_closer(configuration c1, configuration c2, c
 	tmp = abs(l.q2 - c2.q2);
 	dist2 += tmp * tmp;
 
-
+	if (abs(dist1 - dist2) < 1e-2) 
+		std::cout << "debug";
 	if (dist1 <= dist2)
 		return c1;
 	else
